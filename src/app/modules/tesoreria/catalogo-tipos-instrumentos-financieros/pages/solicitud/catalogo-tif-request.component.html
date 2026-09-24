@@ -1,0 +1,220 @@
+<div class="min-h-[calc(100vh-56px)] bg-[var(--sys-color-bg-surfaces-surface-lowest)] text-text">
+  <!-- La cabecera (migas, título, estado y botones según rol y estado) la pinta el layout de solicitudes. -->
+  <siaf-solicitude-page-layout
+    [breadcrumbs]="breadcrumbs"
+    [role]="headerRole()"
+    [state]="headerState()"
+    [loading]="cargando()"
+    [heading]="heading"
+    secondaryText="Creación"
+    [showReturn]="true"
+    [saveDisabled]="!formValido() || saving()"
+    [verifyDisabled]="!puedeVerificar() || cargando()"
+    (returned)="regresar()"
+    (canceled)="regresar()"
+    (saved)="modalGrabar.set(true)"
+    (edited)="editar()"
+    (verified)="modalVerificar.set(true)"
+    (deleted)="modalEliminar.set(true)"
+    (approved)="abrirAprobar()"
+    (observed)="abrirObservar()"
+    (rejected)="abrirRechazar()"
+  >
+    @if (cargando()) {
+      <div class="rounded-siaf-md bg-surface p-siaf-xl">
+        <div class="grid grid-cols-3 gap-siaf-md">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="siaf-skeleton-pulse h-4 w-32 rounded bg-[var(--sys-color-bg-surfaces-surface-low)]"></div>
+          }
+        </div>
+      </div>
+    } @else {
+      @if (elaborado()) {
+        <section class="grid gap-siaf-md lg:grid-cols-[1fr_360px]">
+          <siaf-solicitude-info-card [fields]="camposEntidad()" [captureOpenDate]="true" />
+          <siaf-document-summary-card [documentNumber]="numeroDocumento()" [status]="estadoDocumento()" />
+        </section>
+      } @else {
+        <siaf-solicitude-info-card [fields]="camposEntidad()" [captureOpenDate]="true" />
+      }
+
+      <!-- ── Tipos de instrumentos financieros ── -->
+      <siaf-solicitude-form-card title="Tipos de instrumentos financieros">
+        <div card-actions>
+          @if (!soloLectura()) {
+            @if (agregandoTipo()) {
+              <div class="flex gap-siaf-sm">
+                <siaf-button variant="outline" size="md" (click)="cancelarAgregarTipo()">Cancelar</siaf-button>
+                <siaf-button variant="filled" size="md" [disabled]="!formTipoCompleto()" (click)="aceptarAgregarTipo()">Aceptar</siaf-button>
+              </div>
+            } @else {
+              <siaf-button variant="filled" size="md" icon="add" [iconOnly]="true" ariaLabel="Agregar tipo de instrumento financiero" (click)="abrirAgregarTipo()" />
+            }
+          }
+        </div>
+
+        @if (agregandoTipo()) {
+          <div class="grid gap-siaf-md rounded-siaf-md border border-[var(--sys-color-divider-strong)] p-siaf-md">
+            <div class="grid gap-x-siaf-xl gap-y-siaf-md md:grid-cols-3">
+              <siaf-input
+                label="Código TIF"
+                [required]="true"
+                [value]="formTipo().codigoTif"
+                [error]="errorCodigoDuplicado()"
+                (valueChange)="actualizarFormTipo('codigoTif', $any($event))"
+              />
+              <siaf-input label="Tipo" [required]="true" [value]="formTipo().tipo" (valueChange)="actualizarFormTipo('tipo', $any($event))" />
+              <siaf-input label="Abreviatura" [required]="true" [value]="formTipo().abreviatura" (valueChange)="actualizarFormTipo('abreviatura', $any($event))" />
+            </div>
+
+            <text-area-control
+              placeholder="Descripción"
+              [required]="true"
+              [maxlength]="200"
+              [value]="formTipo().descripcion"
+              (valueChange)="actualizarFormTipo('descripcion', $event)"
+            />
+
+            <siaf-radio-group
+              label="¿Es instrumento financiero?"
+              name="es-instrumento-financiero"
+              [inline]="true"
+              [required]="true"
+              [options]="opcionesSiNo"
+              [value]="formTipo().esInstrumentoFinanciero"
+              (valueChange)="actualizarFormTipo('esInstrumentoFinanciero', $any($event))"
+            />
+
+            <div class="grid gap-siaf-md">
+              <h3 class="m-0 text-sm font-bold uppercase text-text">Vigencia</h3>
+              <div class="grid items-end gap-x-siaf-xl gap-y-siaf-md md:grid-cols-[auto_1fr_1fr]">
+                <siaf-radio-group name="vigencia" [inline]="true" [options]="opcionesSiNo" [value]="formTipo().vigente" (valueChange)="actualizarFormTipo('vigente', $any($event))" />
+                <siaf-date-time-picker label="Fecha desde" [fullWidth]="true" [defaultToToday]="false" [value]="formTipo().fechaDesde" (valueChange)="actualizarFormTipo('fechaDesde', $event)" />
+                <siaf-date-time-picker label="Fecha hasta" [fullWidth]="true" [defaultToToday]="false" [value]="formTipo().fechaHasta" (valueChange)="actualizarFormTipo('fechaHasta', $event)" />
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (tipos().length === 0 && !agregandoTipo()) {
+          <div class="flex min-h-[49px] items-center rounded-siaf-md bg-[var(--sys-color-bg-surfaces-surface-low)] px-siaf-md py-siaf-sm">
+            <p class="m-0 text-sm text-[var(--sys-color-text-neutral-medium)]">Por favor, haga clic en el botón (+) para agregar una opción.</p>
+          </div>
+        }
+
+        @for (t of tipos(); track t.id) {
+          <div class="grid gap-siaf-sm rounded-siaf-md border border-[var(--sys-color-divider-strong)] p-siaf-md">
+            <div class="flex items-start justify-between gap-siaf-md">
+              <div class="grid flex-1 gap-x-siaf-xl gap-y-siaf-sm sm:grid-cols-3">
+                <readonly-field caption="Código TIF" [value]="t.codigoTif" />
+                <readonly-field caption="Tipo" [value]="t.tipo" />
+                <readonly-field caption="Abreviatura" [value]="t.abreviatura" />
+              </div>
+              @if (!soloLectura()) {
+                <siaf-button variant="text" size="sm" icon="delete" [iconOnly]="true" ariaLabel="Quitar tipo de instrumento financiero" (click)="eliminarTipo(t.id)" />
+              }
+            </div>
+            <readonly-field caption="¿Es instrumento financiero?" [value]="t.esInstrumentoFinanciero ? 'Sí' : 'No'" />
+            <readonly-field caption="Descripción" [value]="t.descripcion" />
+
+            <!-- Subtipos: mismo patrón (+) / Cancelar-Aceptar, anidado; sin referencia visual de su formulario, usa
+                 un subconjunto de campos (código, tipo, abreviatura, descripción). -->
+            <div class="mt-siaf-xs grid gap-siaf-sm border-t border-[var(--sys-color-divider-strong)] pt-siaf-sm">
+              <div class="flex items-center justify-between gap-siaf-md">
+                <h4 class="m-0 text-xs font-bold uppercase text-[var(--sys-color-text-neutral-medium)]">Subtipos de instrumentos financieros</h4>
+                @if (!soloLectura()) {
+                  @if (agregandoSubtipoDe() === t.id) {
+                    <div class="flex gap-siaf-sm">
+                      <siaf-button variant="outline" size="sm" (click)="cancelarAgregarSubtipo()">Cancelar</siaf-button>
+                      <siaf-button variant="filled" size="sm" [disabled]="!formSubtipoCompleto()" (click)="aceptarAgregarSubtipo(t.id)">Aceptar</siaf-button>
+                    </div>
+                  } @else {
+                    <siaf-button variant="outline" size="sm" icon="add" [iconOnly]="true" ariaLabel="Agregar subtipo" (click)="abrirAgregarSubtipo(t.id)" />
+                  }
+                }
+              </div>
+
+              @if (agregandoSubtipoDe() === t.id) {
+                <div class="grid gap-siaf-sm rounded-siaf-md bg-[var(--sys-color-bg-surfaces-surface-low)] p-siaf-sm">
+                  <div class="grid gap-x-siaf-xl gap-y-siaf-sm md:grid-cols-3">
+                    <siaf-input label="Código" [required]="true" [value]="formSubtipo().codigo" (valueChange)="actualizarFormSubtipo('codigo', $any($event))" />
+                    <siaf-input label="Tipo" [required]="true" [value]="formSubtipo().tipo" (valueChange)="actualizarFormSubtipo('tipo', $any($event))" />
+                    <siaf-input label="Abreviatura" [required]="true" [value]="formSubtipo().abreviatura" (valueChange)="actualizarFormSubtipo('abreviatura', $any($event))" />
+                  </div>
+                  <text-area-control placeholder="Descripción" [required]="true" [maxlength]="200" [value]="formSubtipo().descripcion" (valueChange)="actualizarFormSubtipo('descripcion', $event)" />
+                </div>
+              }
+
+              @if (t.subtipos.length === 0 && agregandoSubtipoDe() !== t.id) {
+                <div class="flex min-h-10 items-center rounded-siaf-md bg-[var(--sys-color-bg-surfaces-surface-low)] px-siaf-md py-siaf-xs">
+                  <p class="m-0 text-sm text-[var(--sys-color-text-neutral-medium)]">Por favor, haga clic en el botón (+) para agregar una opción.</p>
+                </div>
+              }
+
+              @for (sub of t.subtipos; track sub.id) {
+                <div class="flex items-center justify-between gap-siaf-md rounded-siaf-md bg-[var(--sys-color-bg-surfaces-surface-low)] px-siaf-md py-siaf-xs">
+                  <span class="text-sm text-text">{{ sub.codigo }} — {{ sub.tipo }} ({{ sub.abreviatura }})</span>
+                  @if (!soloLectura()) {
+                    <siaf-button variant="text" size="sm" icon="delete" [iconOnly]="true" ariaLabel="Quitar subtipo" (click)="eliminarSubtipo(t.id, sub.id)" />
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </siaf-solicitude-form-card>
+
+      <!-- ── Justificación ── -->
+      <siaf-solicitude-form-card title="Justificación del sustento">
+        <text-area-control
+          placeholder="Justificación del requerimiento solicitado"
+          [required]="true"
+          [maxlength]="500"
+          [minlength]="minCaracteresTexto"
+          [disabled]="soloLectura()"
+          [value]="justificacion()"
+          (valueChange)="justificacion.set($event)"
+        />
+      </siaf-solicitude-form-card>
+
+      <!-- ── Comentarios del aprobador y trazabilidad ── -->
+      @if (historial().length > 0 || comentarioActual()) {
+        <siaf-detail-history-tabs [comentario]="comentarioActual()" [entries]="historial()" />
+      }
+
+      @if (numeroDocumento()) {
+        <siaf-action-tracker [showSummaryCards]="true" [showTabs]="false" [summaryItems]="trazabilidad()" />
+      }
+    }
+  </siaf-solicitude-page-layout>
+
+  <siaf-request-approval-modals
+    [saveOpen]="modalGrabar()"
+    [verifyOpen]="modalVerificar()"
+    [deleteOpen]="modalEliminar()"
+    [approveOpen]="modalAprobar()"
+    [observeOpen]="modalObservar()"
+    [rejectOpen]="modalRechazar()"
+    [saving]="saving()"
+    [reason]="comentario()"
+    [rejectReasonType]="motivoRechazo()"
+    [rejectReasonTypeOptions]="motivosRechazo"
+    [snackbarVariant]="aviso()"
+    [snackbarOpen]="avisoAbierto()"
+    requestType="creación"
+    [requestNumber]="numeroDocumento()"
+    (saveConfirmed)="onConfirmarGrabar()"
+    (verifyConfirmed)="onConfirmarVerificar()"
+    (deleteConfirmed)="onConfirmarEliminar()"
+    (approveConfirmed)="onConfirmarAprobar()"
+    (observeConfirmed)="onConfirmarObservar()"
+    (rejectConfirmed)="onConfirmarRechazar()"
+    (saveClosed)="modalGrabar.set(false)"
+    (verifyClosed)="modalVerificar.set(false)"
+    (deleteClosed)="modalEliminar.set(false)"
+    (approvalClosed)="cerrarModalesAprobador()"
+    (reasonChange)="comentario.set($event)"
+    (rejectReasonTypeChange)="motivoRechazo.set($event)"
+    (snackbarClosed)="avisoAbierto.set(false)"
+  />
+</div>
